@@ -8,11 +8,27 @@ if (process.argv.length < 3) {
 const config = require(process.argv[2])
 
 const http = require('http')
+const child_process = require('child_process')
 
 const connectionOptions = host => ({
 	host: 'localhost',
 	protocol: 'http:',
 	...config.backends[host].connectionOptions,
+})
+
+const isUp = (host) => new Promise((resolve, reject) => {
+	// Try to establish a connection to the backend
+	// (just TCP, not sending requests)
+	const sock = http.globalAgent.createConnection(connectionOptions(host))
+	// If we get an error while connecting, report it
+	const errHandler = (err) => resolve(false)
+	sock.on('error', errHandler)
+	// Once we're connected, drop the error handler and report success:
+	// the backend is accepting connections, which is all we care about now.
+	sock.on('connect', () => {
+		sock.off('error', errHandler)
+		resolve(true)
+	})
 })
 
 const forwardHttpRequest = (host, ireq, ires) => new Promise((resolve, reject) => {
@@ -33,20 +49,70 @@ const forwardHttpRequest = (host, ireq, ires) => new Promise((resolve, reject) =
 	ireq.pipe(oreq, {end: true})
 })
 
+const backends = {}
+
+const spawnBackend = host => new Promise((resolve, reject) => {
+	const backendConfig = config.backends[host]
+	const child = child_process.spawn(backendConfig.run.command, backendConfig.run.args, {
+		stdio: ['ignore', 1, 2],
+		shell: backendConfig.run.shell,
+		cwd: backendConfig.run.cwd,
+	})
+	const errorHandler = err => reject(err)
+	child.once('error', errorHandler)
+	child.once('spawn', () => {
+		child.off('error', errorHandler)
+		resolve(child)
+	})
+})
+
 async function setupBackend(host) {
 	const backendConfig = config.backends[host]
 	if (!backendConfig) {
 		throw new Error(`Unknown host: ${host}`)
 	}
 	
+	let shutdown = () => {}
+	
+	try {
+		// Boot backend, but only if it's not already listening by some other means
+		if (backendConfig.run && !await isUp(host)) {
+			const child = await spawnBackend(host)
+			let running = true
+			shutdown = () => new Promise((resolve, reject) => {
+				delete backends[host]
+				if (!running) return // Already fell over, don't try to kill
+				if (!child.kill()) {
+					reject(new Error('child.kill() failed'))
+				}
+				child.once('exit', resolve())
+				child.once('error', reject())
+			})
+			child.on('exit', (code, signal) => {
+				console.error(`backend for ${host} exited with status ${code} due to signal ${signal}`)
+				running = false
+				delete backends[host]
+			})
+			while (running) {
+				if (await isUp(host)) break
+			}
+			if (!running) {
+				throw new Error('Backend failed while starting')
+			}
+		}
+	} catch (e) {
+		delete backends[host]
+		shutdown()
+		throw e
+	}
 	return {
 		forward: async (ireq, ires) => {
 			await forwardHttpRequest(host, ireq, ires)
 		},
+		shutdown,
 	}
 }
 
-const backends = {}
 
 function getBackend(host) {
 	if (!backends[host]) {
@@ -69,3 +135,12 @@ const server = http.createServer(async (req, res) => {
 	}
 })
 server.listen(config.listen)
+
+async function shutdown() {
+	console.log('Shutting down...')
+	await new Promise(resolve => server.close(resolve))
+	await Promise.all(Object.values(backends).map(bp => bp.then(b => b.shutdown())))
+	process.exit()
+}
+process.on('SIGINT', shutdown)
+process.on('SIGTERM', shutdown)
