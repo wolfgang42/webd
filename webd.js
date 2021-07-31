@@ -54,6 +54,7 @@ const backends = {}
 const spawnBackend = host => new Promise((resolve, reject) => {
 	const backendConfig = config.backends[host]
 	const child = child_process.spawn(backendConfig.run.command, backendConfig.run.args, {
+		detached: true,
 		stdio: ['ignore', 1, 2],
 		shell: backendConfig.run.shell,
 		cwd: backendConfig.run.cwd,
@@ -82,9 +83,7 @@ async function setupBackend(host) {
 			shutdown = () => new Promise((resolve, reject) => {
 				delete backends[host]
 				if (!running) return // Already fell over, don't try to kill
-				if (!child.kill()) {
-					reject(new Error('child.kill() failed'))
-				}
+				process.kill(-child.pid) // Kill entire process group
 				child.once('exit', resolve())
 				child.once('error', reject())
 			})
