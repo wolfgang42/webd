@@ -1,0 +1,19 @@
+{
+  "listen": {
+    "port": 8888
+  },
+  "backends": {
+    "localhost:8888": {
+      "run": {
+        "cwd": "/usr/share/doc",
+        "command": "python3",
+        "args": ["-m", "http.server", "6800", "--bind", "127.0.0.1"]
+      },
+      "connectionOptions": {
+        "host": "localhost",
+        "port": "6800"
+      },
+      "shutdownAfter": 60000
+    }
+  }
+}
