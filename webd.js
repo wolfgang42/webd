@@ -104,14 +104,25 @@ async function setupBackend(host) {
 		shutdown()
 		throw e
 	}
+	
+	let renew = () => {}
+	if (backendConfig.shutdownAfter) {
+		let tmrHandle
+		renew = () => {
+			clearTimeout(tmrHandle)
+			setTimeout(shutdown, backendConfig.shutdownAfter)
+		}
+		renew()
+	}
+	
 	return {
 		forward: async (ireq, ires) => {
+			renew()
 			await forwardHttpRequest(host, ireq, ires)
 		},
 		shutdown,
 	}
 }
-
 
 function getBackend(host) {
 	if (!backends[host]) {
