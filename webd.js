@@ -27,7 +27,13 @@ const isUp = (host) => new Promise((resolve, reject) => {
 	// the backend is accepting connections, which is all we care about now.
 	sock.on('connect', () => {
 		sock.off('error', errHandler)
-		resolve(true)
+		sock.end(err => {
+			if (err) {
+				errHandler(err)
+			} else {
+				resolve(true)
+			}
+		})
 	})
 })
 
