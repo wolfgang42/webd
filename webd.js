@@ -119,7 +119,7 @@ async function setupBackend(host) {
 		let tmrHandle
 		renew = () => {
 			clearTimeout(tmrHandle)
-			setTimeout(shutdown, backendConfig.shutdownAfter)
+			tmrHandle = setTimeout(shutdown, backendConfig.shutdownAfter)
 		}
 		renew()
 	}
