@@ -10,6 +10,8 @@ const config = require(process.argv[2])
 const http = require('http')
 const child_process = require('child_process')
 
+const sleep = (millis) => new Promise(resolve => setTimeout(resolve, millis))
+
 const connectionOptions = host => ({
 	host: 'localhost',
 	protocol: 'http:',
@@ -100,6 +102,7 @@ async function setupBackend(host) {
 			})
 			while (running) {
 				if (await isUp(host)) break
+				await sleep(50) // Pause for 50ms between retries
 			}
 			if (!running) {
 				throw new Error('Backend failed while starting')
