@@ -143,8 +143,30 @@ function getBackend(host) {
 const server = http.createServer(async (req, res) => {
 	try {
 		const host = req.headers['host']
-		const backend = await getBackend(host)
-		await backend.forward(req, res)
+		if (config.indexHost && host === config.indexHost) {
+			if (req.method !== 'GET') {
+				res.writeHead(405, 'Method Not Allowed')
+				res.end('405 Method Not Allowed')
+			} else if (req.url !== '/') {
+				res.writeHead(404, 'Not Found')
+				res.end('404 Not Found')
+			} else { // GET /
+				res.writeHead(200, 'OK', ['Content-Type', 'text/html'])
+				const esc = s => s.replace(/&/g, '&amp;')
+					.replace(/"/g, '&quot;')
+					.replace(/</g, '&lt;')
+					.replace(/>/g, '&gt;');
+				res.end(
+					`<!DOCTYPE html><title>${esc(host)}</title><h1>${esc(host)}</h1>` +
+					'<ul>'+Object.keys(config.backends).map(k =>
+						`<li><a href="http://${esc(k)}">${esc(k)}</a>`
+					).join('') + '</ul>'
+				)
+			}
+		} else {
+			const backend = await getBackend(host)
+			await backend.forward(req, res)
+		}
 	} catch (e) {
 		if (!res.headersSent) {
 			res.writeHead(500, ['content-type', 'text/plain'])

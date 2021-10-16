@@ -2,6 +2,7 @@
   "listen": {
     "port": 8888
   },
+  "indexHost": "index.webd.local:8888",
   "backends": {
     "localhost:8888": {
       "run": {

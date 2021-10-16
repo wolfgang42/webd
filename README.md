@@ -26,6 +26,7 @@ Bugs (patches gladly accepted!):
 
 Config options:
 * `listen` (required, object): Options for [`server.listen()`](https://nodejs.org/api/net.html#net_server_listen_options_callback).
+* `indexHost` (optional, string): If specified, a `Host` name which will be served a simple HTML page with links to all available backends.
 * `backends` (required, object): Map of `Host` name to backend configurations with the following keys:
   * `connectionOptions` (required, object): Options for [`http.request()`](https://nodejs.org/api/http.html#http_http_request_url_options_callback). `host` defaults to "localhost" unless overridden.
   * `run` (optional, object): Options for starting the backend.
